@@ -13,7 +13,7 @@ import ipdb
 from HypergraphConv import HypergraphConv
 from torch_geometric.nn import GCNConv
 from itertools import permutations
-from torch_geometric.nn.pool.topk_pool import topk
+#from torch_geometric.nn.pool.topk_pool import topk
 from torch_geometric.nn import global_mean_pool as gap, global_max_pool as gmp, global_add_pool as gsp
 from torch_geometric.nn.inits import glorot
 from torch_geometric.nn.conv.gcn_conv import gcn_norm
@@ -27,6 +27,91 @@ class STEFunction(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad_output):
         return F.hardtanh(grad_output)
+
+# class SoftHGRMaximalCorrelation(nn.Module):
+#     def __init__(self, input_dim, hidden_dim=128):
+#         super(SoftHGRMaximalCorrelation, self).__init__()
+#         self.transform_x = nn.Sequential(
+#             nn.Linear(input_dim, hidden_dim),
+#             nn.ReLU(),
+#             nn.Linear(hidden_dim, hidden_dim)
+#         )
+#         self.transform_y = nn.Sequential(
+#             nn.Linear(input_dim, hidden_dim),
+#             nn.ReLU(),
+#             nn.Linear(hidden_dim, hidden_dim)
+#         )
+
+#     def forward(self, x, y):
+#         # Transform the inputs
+#         transformed_x = self.transform_x(x)
+#         transformed_y = self.transform_y(y)
+        
+#         # Calculate the correlation between the transformed inputs
+#         corr = self.compute_correlation(transformed_x, transformed_y)
+        
+#         # Apply the correlation as a loss to be minimized
+#         loss = -torch.mean(corr)
+        
+#         # Add the loss to the original inputs
+#         enhanced_x = x + loss
+#         enhanced_y = y + loss
+        
+#         return enhanced_x, enhanced_y
+    
+#     def compute_correlation(self, x, y):
+#         # Center the variables
+#         x = x - x.mean(0)
+#         y = y - y.mean(0)
+        
+#         # Normalize the variables
+#         x = x / (x.norm(dim=0) + 1e-6)
+#         y = y / (y.norm(dim=0) + 1e-6)
+        
+#         # Compute the correlation
+#         correlation_matrix = torch.mm(x.t(), y)
+#         return correlation_matrix.diag()
+
+class SoftHGRMaximalCorrelation(nn.Module):
+    def __init__(self, input_dim, hidden_dim=128):
+        super(SoftHGRMaximalCorrelation, self).__init__()
+        self.transform_x = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim)
+        )
+        self.transform_y = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim)
+        )
+
+    def forward(self, x, y):
+        # Transform the inputs
+        transformed_x = self.transform_x(x)
+        transformed_y = self.transform_y(y)
+        
+        # Calculate the correlation between the transformed inputs
+        corr = self.compute_correlation(transformed_x, transformed_y)
+        
+        # Apply the correlation as a loss to be minimized
+        loss = -torch.mean(corr)
+        
+        return loss
+    
+    def compute_correlation(self, x, y):
+        # Center the variables
+        x = x - x.mean(0)
+        y = y - y.mean(0)
+        
+        # Normalize the variables
+        x = x / (x.norm(dim=0) + 1e-6)
+        y = y / (y.norm(dim=0) + 1e-6)
+        
+        # Compute the correlation
+        correlation_matrix = torch.mm(x.t(), y)
+        return correlation_matrix.diag()
+
 
 class GraphConvolution(nn.Module):
 
@@ -123,6 +208,9 @@ class HyperGCN(nn.Module):
         for kk in range(num_K):
             setattr(self,'conv%d' %(kk+1), highConv(nhidden, nhidden))
         #self.conv = highConv(nhidden, nhidden)
+        
+        # Initialize Soft HGR maximal correlation module
+        self.soft_hgr = SoftHGRMaximalCorrelation(512, 128)
 
     def forward(self, a, v, l, dia_len, qmask, epoch):
         qmask = torch.cat([qmask[:x,i,:] for i,x in enumerate(dia_len)],dim=0)
@@ -149,6 +237,24 @@ class HyperGCN(nn.Module):
             if 'l' in self.modals:
                 l += emb_vector[2].reshape(1, -1).expand(l.shape[0], l.shape[1])
 
+        # # Apply Soft HGR maximal correlation before combining modalities
+        # if 'a' in self.modals and 'v' in self.modals:
+        #     a, v = self.soft_hgr(a, v)
+        # if 'a' in self.modals and 'l' in self.modals:
+        #     a, l = self.soft_hgr(a, l)
+        # if 'v' in self.modals and 'l' in self.modals:
+        #     v, l = self.soft_hgr(v, l)
+        
+        # Apply Soft HGR maximal correlation before combining modalities
+        if 'a' in self.modals and 'v' in self.modals:
+            hgr_loss_av = self.soft_hgr(a, v)
+        if 'a' in self.modals and 'l' in self.modals:
+            hgr_loss_al = self.soft_hgr(a, l)
+        if 'v' in self.modals and 'l' in self.modals:
+            hgr_loss_vl = self.soft_hgr(v, l)
+
+        # Combine the HGR losses (if needed, you can apply weights to these losses)
+        total_hgr_loss = hgr_loss_av + hgr_loss_al + hgr_loss_vl
 
         hyperedge_index, edge_index, features, batch, hyperedge_type1 = self.create_hyper_index(a, v, l, dia_len, self.modals)
         x1 = self.fc1(features)  
@@ -174,7 +280,7 @@ class HyperGCN(nn.Module):
             out2 = torch.cat([features, out2], dim=-1)
         out1 = self.reverse_features(dia_len, out2)
         #---------------------------------------
-        return out1
+        return out1, total_hgr_loss
         
 
 

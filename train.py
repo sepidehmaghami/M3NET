@@ -149,6 +149,91 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
     return avg_loss, avg_accuracy, labels, preds, masks, avg_fscore, [alphas, alphas_f, alphas_b, vids]
 
 
+# def train_or_eval_graph_model(model, loss_function, dataloader, epoch, cuda, modals, optimizer=None, train=False, dataset='IEMOCAP'):
+#     losses, preds, labels = [], [], []
+#     scores, vids = [], []
+
+#     ei, et, en, el = torch.empty(0).type(torch.LongTensor), torch.empty(0).type(torch.LongTensor), torch.empty(0), []
+
+#     if cuda:
+#         ei, et, en = ei.cuda(), et.cuda(), en.cuda()
+
+#     assert not train or optimizer!=None
+#     if train:
+#         model.train()
+#     else:
+#         model.eval()
+
+#     seed_everything()
+#     for data in dataloader:
+#         if train:
+#             optimizer.zero_grad()
+        
+#         textf1,textf2,textf3,textf4, visuf, acouf, qmask, umask, label = [d.cuda() for d in data[:-1]] if cuda else data[:-1]
+#         if args.multi_modal:
+#             if args.mm_fusion_mthd=='concat':
+#                 if modals == 'avl':
+#                     textf = torch.cat([acouf, visuf, textf1,textf2,textf3,textf4],dim=-1)
+#                 elif modals == 'av':
+#                     textf = torch.cat([acouf, visuf],dim=-1)
+#                 elif modals == 'vl':
+#                     textf = torch.cat([visuf, textf1,textf2,textf3,textf4],dim=-1)
+#                 elif modals == 'al':
+#                     textf = torch.cat([acouf, textf1,textf2,textf3,textf4],dim=-1)
+#                 else:
+#                     raise NotImplementedError
+#             elif args.mm_fusion_mthd=='gated':
+#                 textf = textf
+#         else:
+#             if modals == 'a':
+#                 textf = acouf
+#             elif modals == 'v':
+#                 textf = visuf
+#             elif modals == 'l':
+#                 textf = textf
+#             else:
+#                 raise NotImplementedError
+
+#         lengths = [(umask[j] == 1).nonzero(as_tuple=False).tolist()[-1][0] + 1 for j in range(len(umask))]
+#         if args.multi_modal and args.mm_fusion_mthd=='gated':
+#             log_prob, e_i, e_n, e_t, e_l = model(textf, qmask, umask, lengths, acouf, visuf)
+#         elif args.multi_modal and args.mm_fusion_mthd=='concat_subsequently':   
+#             log_prob, e_i, e_n, e_t, e_l = model([textf1,textf2,textf3,textf4], qmask, umask, lengths, acouf, visuf, epoch)
+#         elif args.multi_modal and args.mm_fusion_mthd=='concat_DHT':   
+#             log_prob, e_i, e_n, e_t, e_l = model([textf1,textf2,textf3,textf4], qmask, umask, lengths, acouf, visuf, epoch)
+#         else:
+#             log_prob, e_i, e_n, e_t, e_l = model(textf, qmask, umask, lengths)
+#         label = torch.cat([label[j][:lengths[j]] for j in range(len(label))])
+#         loss = loss_function(log_prob, label)
+#         preds.append(torch.argmax(log_prob, 1).cpu().numpy())
+#         labels.append(label.cpu().numpy())
+#         losses.append(loss.item())
+#         if train:
+#             loss.backward()
+#             optimizer.step()
+            
+
+#     if preds!=[]:
+#         preds  = np.concatenate(preds)
+#         labels = np.concatenate(labels)
+#     else:
+#         return float('nan'), float('nan'), [], [], float('nan'), [], [], [], [], []
+
+#     vids += data[-1]
+#     ei = ei.data.cpu().numpy()
+#     et = et.data.cpu().numpy()
+#     en = en.data.cpu().numpy()
+#     el = np.array(el)
+#     labels = np.array(labels)
+#     preds = np.array(preds)
+#     vids = np.array(vids)
+
+#     avg_loss = round(np.sum(losses)/len(losses), 4)
+#     avg_accuracy = round(accuracy_score(labels, preds)*100, 2)
+#     avg_fscore = round(f1_score(labels,preds, average='weighted')*100, 2)
+
+#     return avg_loss, avg_accuracy, labels, preds, avg_fscore, vids, ei, et, en, el
+
 def train_or_eval_graph_model(model, loss_function, dataloader, epoch, cuda, modals, optimizer=None, train=False, dataset='IEMOCAP'):
     losses, preds, labels = [], [], []
     scores, vids = [], []
@@ -169,20 +254,20 @@ def train_or_eval_graph_model(model, loss_function, dataloader, epoch, cuda, mod
         if train:
             optimizer.zero_grad()
         
-        textf1,textf2,textf3,textf4, visuf, acouf, qmask, umask, label = [d.cuda() for d in data[:-1]] if cuda else data[:-1]
+        textf1, textf2, textf3, textf4, visuf, acouf, qmask, umask, label = [d.cuda() for d in data[:-1]] if cuda else data[:-1]
         if args.multi_modal:
-            if args.mm_fusion_mthd=='concat':
+            if args.mm_fusion_mthd == 'concat':
                 if modals == 'avl':
-                    textf = torch.cat([acouf, visuf, textf1,textf2,textf3,textf4],dim=-1)
+                    textf = torch.cat([acouf, visuf, textf1, textf2, textf3, textf4], dim=-1)
                 elif modals == 'av':
-                    textf = torch.cat([acouf, visuf],dim=-1)
+                    textf = torch.cat([acouf, visuf], dim=-1)
                 elif modals == 'vl':
-                    textf = torch.cat([visuf, textf1,textf2,textf3,textf4],dim=-1)
+                    textf = torch.cat([visuf, textf1, textf2, textf3, textf4], dim=-1)
                 elif modals == 'al':
-                    textf = torch.cat([acouf, textf1,textf2,textf3,textf4],dim=-1)
+                    textf = torch.cat([acouf, textf1, textf2, textf3, textf4], dim=-1)
                 else:
                     raise NotImplementedError
-            elif args.mm_fusion_mthd=='gated':
+            elif args.mm_fusion_mthd == 'gated':
                 textf = textf
         else:
             if modals == 'a':
@@ -195,25 +280,30 @@ def train_or_eval_graph_model(model, loss_function, dataloader, epoch, cuda, mod
                 raise NotImplementedError
 
         lengths = [(umask[j] == 1).nonzero(as_tuple=False).tolist()[-1][0] + 1 for j in range(len(umask))]
-        if args.multi_modal and args.mm_fusion_mthd=='gated':
-            log_prob, e_i, e_n, e_t, e_l = model(textf, qmask, umask, lengths, acouf, visuf)
-        elif args.multi_modal and args.mm_fusion_mthd=='concat_subsequently':   
-            log_prob, e_i, e_n, e_t, e_l = model([textf1,textf2,textf3,textf4], qmask, umask, lengths, acouf, visuf, epoch)
-        elif args.multi_modal and args.mm_fusion_mthd=='concat_DHT':   
-            log_prob, e_i, e_n, e_t, e_l = model([textf1,textf2,textf3,textf4], qmask, umask, lengths, acouf, visuf, epoch)
+        if args.multi_modal and args.mm_fusion_mthd == 'gated':
+            log_prob, e_i, e_n, e_t, e_l, total_hgr_loss = model(textf, qmask, umask, lengths, acouf, visuf)
+        elif args.multi_modal and args.mm_fusion_mthd == 'concat_subsequently':   
+            log_prob, e_i, e_n, e_t, e_l, total_hgr_loss = model([textf1, textf2, textf3, textf4], qmask, umask, lengths, acouf, visuf, epoch)
+        elif args.multi_modal and args.mm_fusion_mthd == 'concat_DHT':   
+            log_prob, e_i, e_n, e_t, e_l, total_hgr_loss = model([textf1, textf2, textf3, textf4], qmask, umask, lengths, acouf, visuf, epoch)
         else:
-            log_prob, e_i, e_n, e_t, e_l = model(textf, qmask, umask, lengths)
+            log_prob, e_i, e_n, e_t, e_l, total_hgr_loss = model(textf, qmask, umask, lengths)
+        
         label = torch.cat([label[j][:lengths[j]] for j in range(len(label))])
         loss = loss_function(log_prob, label)
+        
+        # Incorporate HGR loss if in training mode
+        if train:
+            loss += total_hgr_loss
+
         preds.append(torch.argmax(log_prob, 1).cpu().numpy())
         labels.append(label.cpu().numpy())
         losses.append(loss.item())
         if train:
             loss.backward()
             optimizer.step()
-            
 
-    if preds!=[]:
+    if preds != []:
         preds  = np.concatenate(preds)
         labels = np.concatenate(labels)
     else:
@@ -228,9 +318,9 @@ def train_or_eval_graph_model(model, loss_function, dataloader, epoch, cuda, mod
     preds = np.array(preds)
     vids = np.array(vids)
 
-    avg_loss = round(np.sum(losses)/len(losses), 4)
-    avg_accuracy = round(accuracy_score(labels, preds)*100, 2)
-    avg_fscore = round(f1_score(labels,preds, average='weighted')*100, 2)
+    avg_loss = round(np.sum(losses) / len(losses), 4)
+    avg_accuracy = round(accuracy_score(labels, preds) * 100, 2)
+    avg_fscore = round(f1_score(labels, preds, average='weighted') * 100, 2)
 
     return avg_loss, avg_accuracy, labels, preds, avg_fscore, vids, ei, et, en, el
 

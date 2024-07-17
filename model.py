@@ -863,10 +863,10 @@ class Model(nn.Module):
                 emotions_feat = nn.ReLU()(emotions_feat)
                 log_prob = F.log_softmax(self.hidfc(self.smax_fc(emotions_feat)), 1)
         elif self.graph_type=='hyper':
-            emotions_feat = self.graph_model(features_a, features_v, features_l, seq_lengths, qmask, epoch)
+            emotions_feat, total_hgr_loss = self.graph_model(features_a, features_v, features_l, seq_lengths, qmask, epoch)
             emotions_feat = self.dropout_(emotions_feat)
             emotions_feat = nn.ReLU()(emotions_feat)
             log_prob = F.log_softmax(self.smax_fc(emotions_feat), 1)
         else:
             print("There are no such kind of graph")        
-        return log_prob, edge_index, edge_norm, edge_type, edge_index_lengths
+        return log_prob, edge_index, edge_norm, edge_type, edge_index_lengths, total_hgr_loss
