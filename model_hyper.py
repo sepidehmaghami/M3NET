@@ -210,7 +210,11 @@ class HyperGCN(nn.Module):
         #self.conv = highConv(nhidden, nhidden)
         
         # Initialize Soft HGR maximal correlation module
-        self.soft_hgr = SoftHGRMaximalCorrelation(512, 128)
+        # self.soft_hgr = SoftHGRMaximalCorrelation(512, 128)
+        self.a_v_soft_hgr = SoftHGRMaximalCorrelation(512, 512)
+        self.a_l_soft_hgr = SoftHGRMaximalCorrelation(512, 512)
+        self.l_v_soft_hgr = SoftHGRMaximalCorrelation(512, 512)
+
 
     def forward(self, a, v, l, dia_len, qmask, epoch):
         qmask = torch.cat([qmask[:x,i,:] for i,x in enumerate(dia_len)],dim=0)
@@ -247,11 +251,11 @@ class HyperGCN(nn.Module):
         
         # Apply Soft HGR maximal correlation before combining modalities
         if 'a' in self.modals and 'v' in self.modals:
-            hgr_loss_av = self.soft_hgr(a, v)
+            hgr_loss_av = self.a_v_soft_hgr(a, v)
         if 'a' in self.modals and 'l' in self.modals:
-            hgr_loss_al = self.soft_hgr(a, l)
+            hgr_loss_al = self.a_l_soft_hgr(a, l)
         if 'v' in self.modals and 'l' in self.modals:
-            hgr_loss_vl = self.soft_hgr(v, l)
+            hgr_loss_vl = self.l_v_soft_hgr(v, l)
 
         # Combine the HGR losses (if needed, you can apply weights to these losses)
         total_hgr_loss = hgr_loss_av + hgr_loss_al + hgr_loss_vl
