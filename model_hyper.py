@@ -211,9 +211,9 @@ class HyperGCN(nn.Module):
         
         # Initialize Soft HGR maximal correlation module
         # self.soft_hgr = SoftHGRMaximalCorrelation(512, 128)
-        self.a_v_soft_hgr = SoftHGRMaximalCorrelation(512, 128)
-        self.a_l_soft_hgr = SoftHGRMaximalCorrelation(512, 128)
-        self.l_v_soft_hgr = SoftHGRMaximalCorrelation(512, 128)
+        self.a_v_soft_hgr = SoftHGRMaximalCorrelation(512, 1024)
+        self.a_l_soft_hgr = SoftHGRMaximalCorrelation(512, 1024)
+        self.l_v_soft_hgr = SoftHGRMaximalCorrelation(512, 1024)
 
 
     def forward(self, a, v, l, dia_len, qmask, epoch):
